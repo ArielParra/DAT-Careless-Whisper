@@ -28,9 +28,10 @@
   "scripts": {
     "build": "tsc",
     "start": "npx tsx src/index.ts",
-    "start:server": "npm run start:signal-api && npx tsx src/server.ts",
+    "start:server": "npx tsx src/server.ts",
+    "start:server:with-signal": "npm run start:signal-api && npm run start:server",
     "start:signal-api": "npx tsx src/scripts/init-signal.ts",
-    "dev": "npm run start:server"
+    "dev": "npm run start:server:with-signal"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^7.0.0-rc.9",

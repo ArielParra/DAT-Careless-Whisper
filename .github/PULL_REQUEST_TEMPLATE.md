@@ -1,12 +1,18 @@
-## Pull Request Checklist
+## Summary
 
-Please ensure your PR follows the checklist below. This helps maintainers review and land changes quickly.
+Describe what changed and why.
 
-- [ ] I have installed project dependencies: `npm install` (and `cd client && npm install` if working in the UI)
-- [ ] I ran TypeScript checks: `npx tsc --noEmit` — there are no new compile errors
-- [ ] I installed Node types locally if touching server or scripts: `npm install --save-dev @types/node`
-- [ ] I added or updated tests when applicable and ran them
-- [ ] I added or updated docs (see `docs/KNOWN_ERRORS.md`) for breaking changes
-- [ ] My PR description explains why the change is needed and references any related issues
+## Checklist
 
-If your change fixes an existing compile error listed in `docs/KNOWN_ERRORS.md`, add a short note in the PR body pointing to the doc and which lines were fixed.
+- [ ] I tested locally with the current repo layout (`backend/` and `frontend/`)
+- [ ] Backend builds: `npm run build --prefix backend`
+- [ ] Frontend builds: `npm run build --prefix frontend`
+- [ ] I updated docs (`README.md` / comments) if behavior, setup, or config changed
+- [ ] I included screenshots/logs for UI or runtime changes when useful
+- [ ] This PR is scoped to a single concern and does not include unrelated changes
+
+## Notes for Reviewers
+
+- Breaking changes:
+- Config/env changes:
+- Follow-up work:
