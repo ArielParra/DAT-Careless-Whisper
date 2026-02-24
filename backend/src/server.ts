@@ -11,7 +11,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
-import makeWASocket, { DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
+import makeWASocket, { DisconnectReason, fetchLatestBaileysVersion, useMultiFileAuthState } from '@whiskeysockets/baileys';
 import { pino } from 'pino';
 import { Boom } from '@hapi/boom';
 import { WhatsAppTracker, ProbeMethod } from './tracker.js';
@@ -22,6 +22,18 @@ const SIGNAL_API_URL = process.env.SIGNAL_API_URL || 'http://localhost:8080';
 
 const app = express();
 app.use(cors());
+
+app.get('/', (_req, res) => {
+    res.json({
+        ok: true,
+        service: 'device-activity-tracker-server',
+        message: 'Server is running. Frontend is at http://localhost:3000',
+    });
+});
+
+app.get('/health', (_req, res) => {
+    res.json({ ok: true });
+});
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
@@ -37,6 +49,9 @@ let isSignalConnected = false;
 let signalAccountNumber: string | null = null;
 let globalProbeMethod: ProbeMethod = 'delete'; // Default to delete method
 let currentWhatsAppQr: string | null = null; // Store current QR code for new clients
+let isWhatsAppConnecting = false;
+let reconnectTimer: NodeJS.Timeout | null = null;
+let reconnectAttempts = 0;
 
 // Platform type for contacts
 type Platform = 'whatsapp' | 'signal';
@@ -48,52 +63,80 @@ interface TrackerEntry {
 
 const trackers: Map<string, TrackerEntry> = new Map(); // JID/Number -> Tracker entry
 
+function scheduleWhatsAppReconnect() {
+    if (reconnectTimer) return;
+    const delayMs = Math.min(30000, 1000 * Math.pow(2, Math.min(reconnectAttempts, 5)));
+    reconnectAttempts += 1;
+    console.log(`[WA] Reconnecting in ${delayMs}ms (attempt ${reconnectAttempts})`);
+
+    reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        void connectToWhatsApp();
+    }, delayMs);
+}
+
 async function connectToWhatsApp() {
-    const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
+    if (isWhatsAppConnecting) return;
+    isWhatsAppConnecting = true;
 
-    sock = makeWASocket({
-        auth: state,
-        logger: pino({ level: 'debug' }),
-        markOnlineOnConnect: true,
-        printQRInTerminal: false,
-    });
+    try {
+        const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
+        const { version } = await fetchLatestBaileysVersion();
 
-    sock.ev.on('connection.update', async (update: any) => {
-        const { connection, lastDisconnect, qr } = update;
+        sock = makeWASocket({
+            auth: state,
+            logger: pino({ level: 'warn' }),
+            markOnlineOnConnect: true,
+            printQRInTerminal: false,
+            version,
+        });
 
-        if (qr) {
-            console.log('QR Code generated');
-            currentWhatsAppQr = qr; // Store the QR code
-            io.emit('qr', qr);
-        }
+        sock.ev.on('connection.update', async (update: any) => {
+            const { connection, lastDisconnect, qr } = update;
 
-        if (connection === 'close') {
-            isWhatsAppConnected = false;
-            currentWhatsAppQr = null; // Clear QR on close
-            const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
-            console.log('connection closed, reconnecting ', shouldReconnect);
-            if (shouldReconnect) {
-                connectToWhatsApp();
+            if (qr) {
+                console.log('QR Code generated');
+                currentWhatsAppQr = qr; // Store the QR code
+                io.emit('qr', qr);
             }
-        } else if (connection === 'open') {
-            isWhatsAppConnected = true;
-            currentWhatsAppQr = null; // Clear QR on successful connection
-            console.log('opened connection');
-            io.emit('connection-open');
-        }
-    });
 
-    sock.ev.on('creds.update', saveCreds);
+            if (connection === 'close') {
+                isWhatsAppConnected = false;
+                currentWhatsAppQr = null; // Clear QR on close
+                const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
+                const shouldReconnect = statusCode !== DisconnectReason.loggedOut && statusCode !== DisconnectReason.badSession;
+                console.log(`[WA] Connection closed (code: ${statusCode ?? 'unknown'}), reconnecting: ${shouldReconnect}`);
+                if (shouldReconnect) {
+                    scheduleWhatsAppReconnect();
+                } else {
+                    console.log('[WA] Session invalid. Delete auth_info_baileys and pair again.');
+                }
+            } else if (connection === 'open') {
+                isWhatsAppConnected = true;
+                reconnectAttempts = 0;
+                currentWhatsAppQr = null; // Clear QR on successful connection
+                console.log('opened connection');
+                io.emit('connection-open');
+            }
+        });
 
-    sock.ev.on('messaging-history.set', ({ chats, contacts, messages, isLatest }: any) => {
-        console.log(`[SESSION] History sync - Chats: ${chats.length}, Contacts: ${contacts.length}, Messages: ${messages.length}, Latest: ${isLatest}`);
-    });
+        sock.ev.on('creds.update', saveCreds);
 
-    sock.ev.on('messages.update', (updates: any) => {
-        for (const update of updates) {
-            console.log(`[MSG UPDATE] JID: ${update.key.remoteJid}, ID: ${update.key.id}, Status: ${update.update.status}, FromMe: ${update.key.fromMe}`);
-        }
-    });
+        sock.ev.on('messaging-history.set', ({ chats, contacts, messages, isLatest }: any) => {
+            console.log(`[SESSION] History sync - Chats: ${chats.length}, Contacts: ${contacts.length}, Messages: ${messages.length}, Latest: ${isLatest}`);
+        });
+
+        sock.ev.on('messages.update', (updates: any) => {
+            for (const update of updates) {
+                console.log(`[MSG UPDATE] JID: ${update.key.remoteJid}, ID: ${update.key.id}, Status: ${update.update.status}, FromMe: ${update.key.fromMe}`);
+            }
+        });
+    } catch (err) {
+        console.error('[WA] Failed to initialize socket:', err);
+        scheduleWhatsAppReconnect();
+    } finally {
+        isWhatsAppConnecting = false;
+    }
 }
 
 connectToWhatsApp();
