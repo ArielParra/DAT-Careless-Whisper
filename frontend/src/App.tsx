@@ -117,9 +117,9 @@ function App() {
                     <header className="mb-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between animate-rise">
                         <div>
                             <span className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.35em] text-[#c7784c]">
-                                Presence Lab
+                                Careless Whisper
                             </span>
-                            <h1 className="text-4xl md:text-5xl font-semibold text-[#1b1b1f]">Activity Tracker</h1>
+                            <h1 className="text-4xl md:text-5xl font-semibold text-[#1b1b1f]">Device Activity Tracker</h1>
                             <p className="mt-3 max-w-xl text-sm text-slate-600">
                                 Monitor multi-device presence signals with clean history controls and readable state timelines.
                             </p>

@@ -443,7 +443,11 @@ export function ContactCard({
                                     <XAxis dataKey="timestamp" hide />
                                     <YAxis domain={['auto', 'auto']} />
                                     <Tooltip
-                                        labelFormatter={(t: number) => new Date(t).toLocaleTimeString()}
+                                        labelFormatter={(label: unknown) => {
+                                            const t = typeof label === 'number' ? label : Number(label);
+                                            if (!Number.isFinite(t)) return String(label ?? '');
+                                            return new Date(t).toLocaleTimeString();
+                                        }}
                                         contentStyle={{
                                             borderRadius: '10px',
                                             border: '1px solid rgba(255, 255, 255, 0.6)',
@@ -513,7 +517,7 @@ export function ContactCard({
                                                         dataKey="timestamp"
                                                         type="number"
                                                         domain={[windowStart, windowEnd]}
-                                                        tickFormatter={(value) => new Date(value).toLocaleTimeString()}
+                                                        tickFormatter={(value: number) => new Date(value).toLocaleTimeString()}
                                                         minTickGap={40}
                                                         tick={{ fill: '#64748b', fontSize: 11 }}
                                                         axisLine={false}
