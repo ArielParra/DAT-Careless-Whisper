@@ -4,6 +4,7 @@ import { Activity, Wifi, Smartphone, Monitor, MessageCircle, ChevronDown, Chevro
 import clsx from 'clsx';
 
 type Platform = 'whatsapp' | 'signal';
+type ProbeMethod = 'delete' | 'reaction';
 
 const stateTimelineConfig = {
     online: { label: 'Online', fill: '#bbf7d0', stroke: '#22c55e', value: 2 },
@@ -62,6 +63,7 @@ interface ContactCardProps {
     onDelete: () => void;
     privacyMode?: boolean;
     platform?: Platform;
+    probeMethod?: ProbeMethod;
 }
 
 export function ContactCard({
@@ -77,7 +79,8 @@ export function ContactCard({
     onResume,
     onDelete,
     privacyMode = false,
-    platform = 'whatsapp'
+    platform = 'whatsapp',
+    probeMethod = 'delete'
 }: ContactCardProps) {
     const lastData = data[data.length - 1];
     const [historyRangeMs, setHistoryRangeMs] = useState<number | null>(15 * 60 * 1000);
@@ -204,6 +207,14 @@ export function ContactCard({
             devices[0].state)
         : 'Unknown';
     const displayStatus = paused ? 'Paused' : currentStatus;
+    const probeLabel = platform === 'signal'
+        ? 'Probe: Reaction'
+        : `Probe: ${probeMethod === 'delete' ? 'Delete' : 'Reaction'}`;
+    const probeBadgeClass = platform === 'signal'
+        ? 'bg-[#fff4d6] text-[#a16207]'
+        : probeMethod === 'delete'
+            ? 'bg-[#dcfce7] text-[#166534]'
+            : 'bg-[#ffedd5] text-[#c2410c]';
     const hasStateSegments = timelineData.length > 0;
     const windowLabel = sortedData.length > 0
         ? `${new Date(windowStart).toLocaleTimeString()} - ${new Date(windowEnd).toLocaleTimeString()}${historyRangeMs !== null && isLive ? ' (Live)' : ''}`
@@ -235,6 +246,12 @@ export function ContactCard({
                     )}>
                         <MessageCircle size={12} />
                         {platform === 'whatsapp' ? 'WhatsApp' : 'Signal'}
+                    </span>
+                    <span className={clsx(
+                        "px-2 py-1 rounded text-xs font-medium",
+                        probeBadgeClass
+                    )}>
+                        {probeLabel}
                     </span>
                     <h3 className="text-lg font-semibold text-slate-900">{blurredNumber}</h3>
                 </div>

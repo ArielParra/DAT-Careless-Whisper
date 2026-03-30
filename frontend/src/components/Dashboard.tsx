@@ -37,6 +37,7 @@ interface ContactInfo {
     profilePic: string | null;
     platform: Platform;
     paused: boolean;
+    probeMethod: ProbeMethod;
 }
 
 export function Dashboard({ connectionState }: DashboardProps) {
@@ -118,7 +119,7 @@ export function Dashboard({ connectionState }: DashboardProps) {
             });
         }
 
-        function onContactAdded(data: { jid: string, number: string, platform?: Platform }) {
+        function onContactAdded(data: { jid: string, number: string, platform?: Platform, probeMethod?: ProbeMethod }) {
             setContacts(prev => {
                 const next = new Map(prev);
                 next.set(data.jid, {
@@ -131,7 +132,8 @@ export function Dashboard({ connectionState }: DashboardProps) {
                     presence: null,
                     profilePic: null,
                     platform: data.platform || 'whatsapp',
-                    paused: false
+                    paused: false,
+                    probeMethod: data.probeMethod || (data.platform === 'signal' ? 'reaction' : probeMethod)
                 });
                 return next;
             });
@@ -155,18 +157,23 @@ export function Dashboard({ connectionState }: DashboardProps) {
             setProbeMethod(method);
         }
 
-        function onTrackedContacts(contacts: { id: string, platform: Platform, paused?: boolean }[]) {
+        function onTrackedContacts(contacts: { id: string, number?: string, platform: Platform, paused?: boolean, probeMethod?: ProbeMethod }[]) {
             setContacts(prev => {
                 const next = new Map(prev);
-                contacts.forEach(({ id, platform, paused }) => {
+                contacts.forEach(({ id, number, platform, paused, probeMethod: entryProbeMethod }) => {
                     if (!next.has(id)) {
-                        // Extract display number from id
-                        let displayNumber = id;
-                        if (platform === 'signal') {
-                            displayNumber = id.replace('signal:', '');
-                        } else {
-                            // WhatsApp JID format: number@s.whatsapp.net
-                            displayNumber = id.split('@')[0];
+                        // Prefer explicit number from backend; fallback to legacy ID parsing.
+                        let displayNumber = number || id;
+                        if (!number) {
+                            if (platform === 'signal') {
+                                displayNumber = id.replace('signal:', '');
+                            } else if (id.startsWith('wa:')) {
+                                // wa:<number>:<probeMethod>
+                                displayNumber = id.split(':')[1] || id;
+                            } else {
+                                // Legacy WhatsApp JID format: number@s.whatsapp.net
+                                displayNumber = id.split('@')[0];
+                            }
                         }
                         next.set(id, {
                             jid: id,
@@ -178,12 +185,17 @@ export function Dashboard({ connectionState }: DashboardProps) {
                             presence: null,
                             profilePic: null,
                             platform,
-                            paused: paused ?? false
+                            paused: paused ?? false,
+                            probeMethod: entryProbeMethod || (platform === 'signal' ? 'reaction' : probeMethod)
                         });
-                    } else if (paused !== undefined) {
+                    } else if (paused !== undefined || entryProbeMethod !== undefined) {
                         const contact = next.get(id);
                         if (contact) {
-                            next.set(id, { ...contact, paused });
+                            next.set(id, {
+                                ...contact,
+                                paused: paused ?? contact.paused,
+                                probeMethod: entryProbeMethod ?? contact.probeMethod
+                            });
                         }
                     }
                 });
@@ -407,6 +419,7 @@ export function Dashboard({ connectionState }: DashboardProps) {
                             onDelete={() => handleDelete(contact.jid)}
                             privacyMode={privacyMode}
                             platform={contact.platform}
+                            probeMethod={contact.probeMethod}
                         />
                     ))}
                 </div>

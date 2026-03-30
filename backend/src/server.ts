@@ -60,6 +60,8 @@ interface TrackerEntry {
     tracker: WhatsAppTracker | SignalTracker;
     platform: Platform;
     paused: boolean;
+    probeMethod: ProbeMethod;
+    displayNumber: string;
 }
 
 const trackers: Map<string, TrackerEntry> = new Map(); // JID/Number -> Tracker entry
@@ -297,19 +299,14 @@ io.on('connection', (socket) => {
     // Send current probe method to client
     socket.emit('probe-method', globalProbeMethod);
 
-    // Send tracked contacts with platform info
-    const trackedContacts = Array.from(trackers.entries()).map(([id, entry]) => ({
-        id,
-        platform: entry.platform,
-        paused: entry.paused
-    }));
-
     // Handle request to get tracked contacts (for page refresh)
     socket.on('get-tracked-contacts', () => {
         const trackedContacts = Array.from(trackers.entries()).map(([id, entry]) => ({
             id,
+            number: entry.displayNumber,
             platform: entry.platform,
-            paused: entry.paused
+            paused: entry.paused,
+            probeMethod: entry.probeMethod
         }));
         socket.emit('tracked-contacts', trackedContacts);
     });
@@ -356,7 +353,13 @@ io.on('connection', (socket) => {
                 console.log(`[SIGNAL] Number ${targetNumber} is registered, starting tracking...`);
                 const tracker = new SignalTracker(SIGNAL_API_URL, signalAccountNumber, targetNumber);
 
-                trackers.set(signalId, { tracker, platform: 'signal', paused: false });
+                trackers.set(signalId, {
+                    tracker,
+                    platform: 'signal',
+                    paused: false,
+                    probeMethod: 'reaction',
+                    displayNumber: cleanNumber
+                });
 
                 tracker.onUpdate = (updateData) => {
                     io.emit('tracker-update', {
@@ -371,7 +374,8 @@ io.on('connection', (socket) => {
                 socket.emit('contact-added', {
                     jid: signalId,
                     number: cleanNumber,
-                    platform: 'signal'
+                    platform: 'signal',
+                    probeMethod: 'reaction'
                 });
 
                 io.emit('contact-name', { jid: signalId, name: cleanNumber });
@@ -382,9 +386,13 @@ io.on('connection', (socket) => {
         } else {
             // WhatsApp tracking (original logic)
             const targetJid = cleanNumber + '@s.whatsapp.net';
+            const trackerId = `wa:${cleanNumber}:${globalProbeMethod}`;
 
-            if (trackers.has(targetJid)) {
-                socket.emit('error', { jid: targetJid, message: 'Already tracking this contact' });
+            if (trackers.has(trackerId)) {
+                socket.emit('error', {
+                    jid: trackerId,
+                    message: `Already tracking this contact with ${globalProbeMethod} probe`
+                });
                 return;
             }
 
@@ -395,11 +403,17 @@ io.on('connection', (socket) => {
                 if (result?.exists) {
                     const tracker = new WhatsAppTracker(sock, result.jid);
                     tracker.setProbeMethod(globalProbeMethod);
-                    trackers.set(result.jid, { tracker, platform: 'whatsapp', paused: false });
+                    trackers.set(trackerId, {
+                        tracker,
+                        platform: 'whatsapp',
+                        paused: false,
+                        probeMethod: globalProbeMethod,
+                        displayNumber: cleanNumber
+                    });
 
                     tracker.onUpdate = (updateData) => {
                         io.emit('tracker-update', {
-                            jid: result.jid,
+                            jid: trackerId,
                             platform: 'whatsapp',
                             ...updateData
                         });
@@ -420,19 +434,20 @@ io.on('connection', (socket) => {
                     }
 
                     socket.emit('contact-added', {
-                        jid: result.jid,
+                        jid: trackerId,
                         number: cleanNumber,
-                        platform: 'whatsapp'
+                        platform: 'whatsapp',
+                        probeMethod: globalProbeMethod
                     });
 
-                    io.emit('profile-pic', { jid: result.jid, url: ppUrl });
-                    io.emit('contact-name', { jid: result.jid, name: contactName });
+                    io.emit('profile-pic', { jid: trackerId, url: ppUrl });
+                    io.emit('contact-name', { jid: trackerId, name: contactName });
                 } else {
-                    socket.emit('error', { jid: targetJid, message: 'Number not on WhatsApp' });
+                    socket.emit('error', { jid: trackerId, message: 'Number not on WhatsApp' });
                 }
             } catch (err) {
                 console.error(err);
-                socket.emit('error', { jid: targetJid, message: 'Verification failed' });
+                socket.emit('error', { jid: trackerId, message: 'Verification failed' });
             }
         }
     });
@@ -484,18 +499,12 @@ io.on('connection', (socket) => {
             return;
         }
 
+        // This is the default method for newly added WhatsApp contacts.
+        // Existing trackers keep their current method.
         globalProbeMethod = method;
 
-        for (const entry of trackers.values()) {
-            // Only WhatsApp trackers support the delete method
-            if (entry.platform === 'whatsapp') {
-                (entry.tracker as WhatsAppTracker).setProbeMethod(method);
-            }
-            // Signal trackers always use reaction method
-        }
-
         io.emit('probe-method', method);
-        console.log(`Probe method changed to: ${method}`);
+        console.log(`Default probe method for new contacts changed to: ${method}`);
     });
 });
 
