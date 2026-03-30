@@ -249,7 +249,7 @@ export function Dashboard({ connectionState }: DashboardProps) {
                                             ? 'bg-purple-600 text-white'
                                             : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                     }`}
-                                    title="Silent Delete Probe - Completely covert, target sees nothing"
+                                    title="Delete Probe - Sends and quickly removes a probe message to measure delivery and response timing. Designed to be low-visibility; no persistent message should remain in the chat history."
                                 >
                                     <Trash2 size={14} />
                                     Delete
@@ -261,7 +261,7 @@ export function Dashboard({ connectionState }: DashboardProps) {
                                             ? 'bg-yellow-500 text-white'
                                             : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                     }`}
-                                    title="Reaction Probe - Sends reactions to non-existent messages"
+                                    title="Reaction Probe - Sends reactions referencing invalid or non-existent message IDs and uses the protocol response for timing/state inference. This method is generally more detectable than Delete Probe."
                                 >
                                     <Zap size={14} />
                                     Reaction
@@ -276,7 +276,9 @@ export function Dashboard({ connectionState }: DashboardProps) {
                                     ? 'bg-green-600 text-white hover:bg-green-700 shadow-md' 
                                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                             }`}
-                            title={privacyMode ? 'Privacy Mode: ON (Click to disable)' : 'Privacy Mode: OFF (Click to enable)'}
+                            title={privacyMode
+                                ? 'Privacy Mode: ON - phone digits are masked and profile photos are blurred in the dashboard. Monitoring continues normally. Click to disable.'
+                                : 'Privacy Mode: OFF - full phone numbers and profile photos are visible in the dashboard. Click to enable masking and blur.'}
                         >
                             {privacyMode ? (
                                 <>

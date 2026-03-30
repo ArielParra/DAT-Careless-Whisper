@@ -25,6 +25,6 @@ ENV PORT=${PORT}
 EXPOSE ${PORT}
 
 # Create directory for WhatsApp auth state
-RUN mkdir -p /app/baileys_auth_info
+RUN mkdir -p /app/auth_info_baileys
 
 CMD ["node", "dist/server.js"]

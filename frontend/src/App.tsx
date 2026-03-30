@@ -112,7 +112,7 @@ function App() {
         <div className="min-h-screen bg-gray-100 p-8">
             <div className="max-w-6xl mx-auto">
                 <header className="mb-8 flex justify-between items-center">
-                    <h1 className="text-3xl font-bold text-gray-900">Activity Tracker</h1>
+                    <h1 className="text-3xl font-bold text-gray-900">Device Activity Tracker</h1>
                     <div className="flex items-center gap-2">
                         <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
                         <span className="text-sm text-gray-600">{isConnected ? 'Server Connected' : 'Disconnected'}</span>
